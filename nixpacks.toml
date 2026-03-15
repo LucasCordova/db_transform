@@ -1,0 +1,3 @@
+# Install PostgreSQL client (psql) so start.sh can run TRANSFORM_SQL
+[phases.setup]
+nixPkgs = ["postgresql"]
