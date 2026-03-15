@@ -1,26 +1,60 @@
 # Database Transformer
 
-Run a PostgreSQL script on a schedule. Use as a **Railway template**: deploy, set your database URL and SQL in variables, and set the cron schedule in Settings.
+A lightweight Docker container that runs a PostgreSQL script against a database. Designed to be deployed as a **Railway template** on a cron schedule — set your SQL in an environment variable, no redeploy needed to change it.
 
-## Use as a Railway template
+## Quick Start (Railway Template)
 
-1. **Create a template** from this repo and add it as a service (or use an existing template link).
+1. **Deploy the template** from the Railway template link.
+2. **Set variables** when prompted (see below).
+3. **Set a cron schedule** in Service Settings (e.g. `0 * * * *` for hourly).
 
-2. **Configure the service**
-   - **Variables:** Set `DATABASE_URL` and `TRANSFORM_SQL` (both required). Optionally set `DEBUG=1` for verbose logs.
-   - **Settings → Cron Schedule:** Set when to run (e.g. `0 * * * *` for every hour).
+That's it. The container runs your SQL on schedule and exits.
 
-3. **SQL:** Put the full SQL to run in the **`TRANSFORM_SQL`** variable in Railway Variables. Multi-line is supported. Change it anytime in the dashboard—no redeploy needed.
+## Environment Variables
 
-### Template variables
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | Yes | PostgreSQL connection URL (e.g. `postgresql://user:pass@host:5432/dbname`). |
+| `TRANSFORM_SQL` | Yes | The SQL to execute each run. Multi-line supported. Edit anytime in Railway Variables — no redeploy needed. |
+| `DEBUG` | No | Set to `1` for timestamped verbose logging with full `psql` output. |
 
-| Variable         | Required | Description                                                                 |
-|-----------------|----------|-----------------------------------------------------------------------------|
-| `DATABASE_URL`  | Yes      | PostgreSQL connection URL (e.g. `postgresql://user:pass@host:5432/dbname`). |
-| `TRANSFORM_SQL` | Yes      | Full SQL to run each time. Edit in Railway Variables; multi-line supported. |
-| `DEBUG`         | No       | Set to `1` or `true` to log each run with timestamps and full `psql` output. |
+## How It Works
 
-### After deployment
+1. Container starts and reads `TRANSFORM_SQL` from the environment.
+2. Pipes the SQL to `psql` using the `DATABASE_URL` connection string.
+3. Exits. Railway's cron scheduler handles the next run.
 
-- **Cron schedule:** Service **Settings** → **Cron Schedule** (e.g. `0 * * * *` for hourly).
-- **SQL:** Edit the **`TRANSFORM_SQL`** variable in Railway Variables.
+The SQL runs exactly as written — wrap in `START TRANSACTION; ... COMMIT;` if you want transactional execution.
+
+## Docker Hub
+
+### Build and push
+
+```bash
+docker build --platform linux/amd64 -t youruser/db-transform:latest .
+docker push youruser/db-transform:latest
+```
+
+### Run locally
+
+```bash
+docker run --rm \
+  -e DATABASE_URL="postgresql://user:pass@host:5432/dbname" \
+  -e TRANSFORM_SQL="SELECT NOW();" \
+  -e DEBUG=1 \
+  youruser/db-transform:latest
+```
+
+## Creating the Railway Template
+
+1. Push the image to Docker Hub.
+2. Go to [railway.com/button](https://railway.com/button) and create a new template.
+3. Add a service using your Docker Hub image.
+4. In the template's **Variables** section, define:
+   - `DATABASE_URL` — required
+   - `TRANSFORM_SQL` — required
+   - `DEBUG` — optional
+5. Set a default **Cron Schedule** in the service settings.
+6. Publish the template.
+
+Users deploying your template will be prompted for the required variables automatically.
