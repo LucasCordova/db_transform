@@ -1,9 +1,18 @@
-FROM alpine
-LABEL org.opencontainers.image.title="db-transform" \
-      org.opencontainers.image.description="Run PostgreSQL transforms on a cron schedule" \
-      org.opencontainers.image.source="https://github.com/LPCORDOVA/db_transform"
+ARG RELEASE=22.04
+FROM ubuntu:${RELEASE}
+
+LABEL org.opencontainers.image.ref.name="ubuntu"
+LABEL org.opencontainers.image.version="22.04"
+
 WORKDIR /app
-RUN apk --no-cache add postgresql18-client
+
+RUN apt-get update && \
+    apt-get install -y postgresql-client && \
+    apt-get clean
+
 COPY run.sh .
+COPY transform.sql .
+
 RUN chmod +x run.sh
-CMD ["sh", "run.sh"]
+
+CMD ["bash", "run.sh"]

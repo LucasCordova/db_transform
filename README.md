@@ -1,60 +1,71 @@
-# Database Transformer
+# db-transform
 
-A lightweight Docker container that runs a PostgreSQL script against a database. Designed to be deployed as a **Railway template** on a cron schedule — set your SQL in an environment variable, no redeploy needed to change it.
+A lightweight container that runs a PostgreSQL SQL script against a database. Useful for one-off or scheduled transforms (e.g. via cron, Railway cron, or Kubernetes CronJob).
 
-## Quick Start (Railway Template)
+## What it does
 
-1. **Deploy the template** from the Railway template link.
-2. **Set variables** when prompted (see below).
-3. **Set a cron schedule** in Service Settings (e.g. `0 * * * *` for hourly).
+1. **Reads** the `TRANSFORM_SQL` environment variable (multi-line SQL supported).
+2. **Connects** to PostgreSQL via `DATABASE_URL`.
+3. **Executes** the SQL and exits.
 
-That's it. The container runs your SQL on schedule and exits.
+The SQL runs exactly as written. Wrap in `START TRANSACTION; ... COMMIT;` for transactional execution.
 
-## Environment Variables
+## Environment variables
 
 | Variable | Required | Description |
 |---|---|---|
-| `DATABASE_URL` | Yes | PostgreSQL connection URL (e.g. `postgresql://user:pass@host:5432/dbname`). |
-| `TRANSFORM_SQL` | Yes | The SQL to execute each run. Multi-line supported. Edit anytime in Railway Variables — no redeploy needed. |
-| `DEBUG` | No | Set to `1` for timestamped verbose logging with full `psql` output. |
+| `DATABASE_URL` | Yes | PostgreSQL connection string (e.g. `postgresql://user:pass@host:5432/dbname`). |
+| `TRANSFORM_SQL` | Yes | SQL to execute each run. Multi-line supported. Edit anytime in Railway Variables — no redeploy needed. |
+| `DEBUG` | No | Set to `true` or `1` for timestamped verbose logging with full `psql` output. Default: `false`. |
 
-## How It Works
+## Running with Docker
 
-1. Container starts and reads `TRANSFORM_SQL` from the environment.
-2. Pipes the SQL to `psql` using the `DATABASE_URL` connection string.
-3. Exits. Railway's cron scheduler handles the next run.
-
-The SQL runs exactly as written — wrap in `START TRANSACTION; ... COMMIT;` if you want transactional execution.
-
-## Docker Hub
-
-### Build and push
+Build and run with environment variables:
 
 ```bash
-docker build --platform linux/amd64 -t youruser/db-transform:latest .
-docker push youruser/db-transform:latest
-```
-
-### Run locally
-
-```bash
+docker build -t db-transform .
 docker run --rm \
-  -e DATABASE_URL="postgresql://user:pass@host:5432/dbname" \
+  -e DATABASE_URL="postgresql://user:password@host:5432/mydb" \
   -e TRANSFORM_SQL="SELECT NOW();" \
-  -e DEBUG=1 \
-  youruser/db-transform:latest
+  -e DEBUG=true \
+  db-transform
 ```
 
-## Creating the Railway Template
+Or use an env file:
 
-1. Push the image to Docker Hub.
-2. Go to [railway.com/button](https://railway.com/button) and create a new template.
-3. Add a service using your Docker Hub image.
-4. In the template's **Variables** section, define:
-   - `DATABASE_URL` — required
-   - `TRANSFORM_SQL` — required
-   - `DEBUG` — optional
-5. Set a default **Cron Schedule** in the service settings.
-6. Publish the template.
+```bash
+docker run --rm --env-file .env db-transform
+```
 
-Users deploying your template will be prompted for the required variables automatically.
+## Example `.env`
+
+```env
+DATABASE_URL=postgresql://user:secret@db.example.com:5432/etl
+TRANSFORM_SQL=START TRANSACTION;
+  UPDATE users SET active = false WHERE last_login < NOW() - INTERVAL '1 year';
+COMMIT;
+DEBUG=false
+```
+
+## Running on a schedule
+
+With host cron:
+
+```bash
+0 * * * * docker run --rm --env-file /path/to/.env lucascordova/db-transform
+```
+
+Or use the same image as the job container in a Kubernetes CronJob.
+
+## Railway deployment
+
+1. Deploy from the Railway template or connect the repo.
+2. Set `DATABASE_URL` and `TRANSFORM_SQL` in Railway Variables.
+3. Optionally set `DEBUG=true`.
+4. Set a **Cron Schedule** in Service Settings (e.g. `0 * * * *` for hourly).
+
+Change the SQL anytime in Railway Variables — no redeploy needed.
+
+## License
+
+See repository for license information.
